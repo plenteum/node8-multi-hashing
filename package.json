@@ -8,8 +8,7 @@
         "email": "zone117x@gmail.com"
     },
     "contributors": [
-        "Brandon Lehmann <brandonlehmann@gmail.com>",
-		"David Long <davidhamiltonlong@gmail.com>",
+        "Brandon Lehmann <brandonlehmann@gmail.com>"
     ],
     "license": "GPL-3.0",
     "repository": {
@@ -39,6 +38,6 @@
         "sha1",
         "turtlecoin",
         "cryptonight",
-		"plenteum"
+		    "plenteum"
     ]
 }
