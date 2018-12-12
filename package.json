@@ -1,5 +1,5 @@
 {
-    "name": "node8-multi-hashing",
+    "name": "plenteum-multi-hashing",
     "version": "0.0.18",
     "main": "multihashing",
     "gypfile": true,
