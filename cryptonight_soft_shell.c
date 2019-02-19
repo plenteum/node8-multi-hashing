@@ -104,10 +104,10 @@
 
 #define VARIANT2_2() \
   do if (variant >= 2) { \
-    ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[0] ^= hi; \
-    ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[1] ^= lo; \
-    hi ^= ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[0]; \
-    lo ^= ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[1]; \
+    ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[0] ^= hi; \
+    ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[1] ^= lo; \
+    hi ^= ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[0]; \
+    lo ^= ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[1]; \
   } while (0)
 
 #pragma pack(push, 1)
