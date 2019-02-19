@@ -207,7 +207,7 @@ void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, 
 #if defined(_MSC_VER)
 	uint8_t *long_state = (uint8_t *)_malloca(scratchpad);
 #else
-	uint8_t *long_state = (uint8_t *)malloc(scratchpad);
+	uint8_t *long_state = (uint8_t *)alloca(scratchpad);
 #endif
     hash_process(&state.hs, (const uint8_t*) input, len);
     memcpy(text, state.init, INIT_SIZE_BYTE);
