@@ -145,8 +145,8 @@ static void (* const extra_hashes[4])(const void *, size_t, char *) = {
 extern int aesb_single_round(const uint8_t *in, uint8_t*out, const uint8_t *expandedKey);
 extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
 
-static inline size_t e2i(const uint8_t* a, size_t count) {
-    return (*((uint64_t*) a) / AES_BLOCK_SIZE) & (count - 1);
+static inline size_t e2i(const uint8_t* a) {
+    return (*((uint64_t*) a) / AES_BLOCK_SIZE) & (CN_AES_INIT - 1);
 }
 
 static void mul(const uint8_t* a, const uint8_t* b, uint8_t* res) {
@@ -239,13 +239,13 @@ void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, 
          * next address  <-+
          */
         /* Iteration 1 */
-        j = e2i(a, CN_AES_INIT);
+        j = e2i(a);
         aesb_single_round(&long_state[j * AES_BLOCK_SIZE], c, a);
         VARIANT2_SHUFFLE_ADD(long_state, j * AES_BLOCK_SIZE, a, b);
         xor_blocks_dst(c, b, &long_state[j * AES_BLOCK_SIZE]);
         VARIANT1_1((uint8_t*)&long_state[j * AES_BLOCK_SIZE]);
         /* Iteration 2 */
-        j = e2i(c, CN_AES_INIT);
+        j = e2i(c);
 
         uint64_t* dst = (uint64_t*)&long_state[j * AES_BLOCK_SIZE];
 
