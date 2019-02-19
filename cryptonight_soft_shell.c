@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 // Portions Copyright (c) 2018 The Monero developers
 // Portions Copyright (c) 2018 The TurtleCoin Developers
+// Portions Copyright (c) 2019 The Plenteum Developers
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,11 +21,13 @@
 #include <malloc.h>
 #endif
 
-// Standard Crypto Definitions
-#define AES_BLOCK_SIZE         16
-#define AES_KEY_SIZE           32
-#define INIT_SIZE_BLK          8
-#define INIT_SIZE_BYTE         (INIT_SIZE_BLK * AES_BLOCK_SIZE)
+
+#define AES_BLOCK_SIZE  16
+#define AES_KEY_SIZE    32 /*16*/
+#define INIT_SIZE_BLK   8
+#define INIT_SIZE_BYTE  (INIT_SIZE_BLK * AES_BLOCK_SIZE)
+
+
 
 #define VARIANT1_1(p) \
   do if (variant == 1) \
@@ -47,7 +50,7 @@
     fprintf(stderr, "Cryptonight variant 1 needs at least 43 bytes of data"); \
     _exit(1); \
   } \
-  const uint64_t tweak1_2 = (variant == 1) ? *(const uint64_t*)(((const uint8_t*)input)+35) ^ state.hs.w[24] : 0
+  const uint64_t tweak1_2 = (variant == 1) ? *(const uint64_t*)(((const uint8_t*)input)+35) ^ ctx->state.hs.w[24] : 0
 
 #define U64(p) ((uint64_t*)(p))
 
@@ -101,10 +104,10 @@
 
 #define VARIANT2_2() \
   do if (variant >= 2) { \
-    ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[0] ^= hi; \
-    ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[1] ^= lo; \
-    hi ^= ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[0]; \
-    lo ^= ((uint64_t*)(long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[1]; \
+    ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[0] ^= hi; \
+    ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x10)))[1] ^= lo; \
+    hi ^= ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[0]; \
+    lo ^= ((uint64_t*)(ctx->long_state + ((j * AES_BLOCK_SIZE) ^ 0x20)))[1]; \
   } while (0)
 
 #pragma pack(push, 1)
@@ -117,33 +120,33 @@ union cn_slow_hash_state {
 };
 #pragma pack(pop)
 
-static void do_soft_shell_blake_hash(const void* input, size_t len, char* output) {
+static void do_turtle_lite_blake_hash(const void* input, size_t len, char* output) {
     blake256_hash((uint8_t*)output, input, len);
 }
 
-void do_soft_shell_groestl_hash(const void* input, size_t len, char* output) {
+void do_turtle_lite_groestl_hash(const void* input, size_t len, char* output) {
     groestl(input, len * 8, (uint8_t*)output);
 }
 
-static void do_soft_shell_jh_hash(const void* input, size_t len, char* output) {
+static void do_turtle_lite_jh_hash(const void* input, size_t len, char* output) {
     int r = jh_hash(HASH_SIZE * 8, input, 8 * len, (uint8_t*)output);
     assert(SUCCESS == r);
 }
 
-static void do_soft_shell_skein_hash(const void* input, size_t len, char* output) {
+static void do_turtle_lite_skein_hash(const void* input, size_t len, char* output) {
     int r = c_skein_hash(8 * HASH_SIZE, input, 8 * len, (uint8_t*)output);
     assert(SKEIN_SUCCESS == r);
 }
 
 static void (* const extra_hashes[4])(const void *, size_t, char *) = {
-    do_soft_shell_blake_hash, do_soft_shell_groestl_hash, do_soft_shell_jh_hash, do_soft_shell_skein_hash
+    do_turtle_lite_blake_hash, do_turtle_lite_groestl_hash, do_turtle_lite_jh_hash, do_turtle_lite_skein_hash
 };
 
 extern int aesb_single_round(const uint8_t *in, uint8_t*out, const uint8_t *expandedKey);
 extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey);
 
-static inline size_t e2i(const uint8_t* a, size_t count) {
-    return (*((uint64_t*) a) / AES_BLOCK_SIZE) & (count - 1);
+static inline size_t e2i(const uint8_t* a) {
+    return (*((uint64_t*) a) / AES_BLOCK_SIZE) & (CN_AES_INIT - 1);
 }
 
 static void mul(const uint8_t* a, const uint8_t* b, uint8_t* res) {
@@ -188,47 +191,53 @@ static inline void xor_blocks_dst(const uint8_t* a, const uint8_t* b, uint8_t* d
     ((uint64_t*) dst)[1] = ((uint64_t*) a)[1] ^ ((uint64_t*) b)[1];
 }
 
-void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, int variant, uint32_t scratchpad, uint32_t iterations) {
+struct cryptonightsoftshell_ctx {
+    
     union cn_slow_hash_state state;
     uint8_t text[INIT_SIZE_BYTE];
     uint8_t a[AES_BLOCK_SIZE];
-    uint8_t b[AES_BLOCK_SIZE];
+    uint8_t b[AES_BLOCK_SIZE * 2];
     uint8_t c[AES_BLOCK_SIZE];
     uint8_t aes_key[AES_KEY_SIZE];
     oaes_ctx* aes_ctx;
-    
+};
+
+void cryptonightsoftshell_hash(const char* input, char* output, uint32_t len, int variant, uint32_t scratchpad, uint32_t iterations) {
+
+
+	size_t  ITER_DIV = (iterations / 2); /* 2^16 */
+	size_t  CN_INIT = (scratchpad / INIT_SIZE_BYTE);
+	size_t  CN_AES_INIT = (scratchpad / AES_BLOCK_SIZE) / 2;
+	
 #if defined(_MSC_VER)
-    uint8_t *long_state = (uint8_t *)_malloca(scratchpad);
+    struct cryptonightsoftshell_ctx *ctx = _malloca(sizeof(struct cryptonightsoftshell_ctx));
+	uint8_t *long_state = (uint8_t *)_malloca(scratchpad);
 #else
-    uint8_t *long_state = (uint8_t *)malloc(scratchpad);
+    struct cryptonightsoftshell_ctx *ctx = alloca(sizeof(struct cryptonightsoftshell_ctx));
+	uint8_t *long_state = (uint8_t *)alloc(scratchpad);
 #endif
-
-    size_t CN_INIT = (scratchpad / INIT_SIZE_BYTE);
-    size_t ITER_DIV = (iterations / 2);
-    size_t CN_AES_INIT = (scratchpad / AES_BLOCK_SIZE) / 2;
-
-    hash_process(&state.hs, (const uint8_t*) input, len);
-    memcpy(text, state.init, INIT_SIZE_BYTE);
-    memcpy(aes_key, state.hs.b, AES_KEY_SIZE);
-    aes_ctx = (oaes_ctx*) oaes_alloc();
+    hash_process(&ctx->state.hs, (const uint8_t*) input, len);
+    memcpy(ctx->text, ctx->state.init, INIT_SIZE_BYTE);
+    memcpy(ctx->aes_key, ctx->state.hs.b, AES_KEY_SIZE);
+    ctx->aes_ctx = (oaes_ctx*) oaes_alloc();
     size_t i, j;
 
     VARIANT1_INIT();
-    VARIANT2_INIT(b, state);
+    VARIANT2_INIT(ctx->b, ctx->state);
 
-    oaes_key_import_data(aes_ctx, aes_key, AES_KEY_SIZE);
+    oaes_key_import_data(ctx->aes_ctx, ctx->aes_key, AES_KEY_SIZE);
     for (i = 0; i < CN_INIT; i++) {
         for (j = 0; j < INIT_SIZE_BLK; j++) {
-            aesb_pseudo_round(&text[AES_BLOCK_SIZE * j],
-                    &text[AES_BLOCK_SIZE * j],
-                    aes_ctx->key->exp_data);
+            aesb_pseudo_round(&ctx->text[AES_BLOCK_SIZE * j],
+                    &ctx->text[AES_BLOCK_SIZE * j],
+                    ctx->aes_ctx->key->exp_data);
         }
-        memcpy(&long_state[i * INIT_SIZE_BYTE], text, INIT_SIZE_BYTE);
+        memcpy(&long_state[i * INIT_SIZE_BYTE], ctx->text, INIT_SIZE_BYTE);
     }
 
     for (i = 0; i < 16; i++) {
-        a[i] = state.k[i] ^ state.k[32 + i];
-        b[i] = state.k[16 + i] ^ state.k[48 + i];
+        ctx->a[i] = ctx->state.k[i] ^ ctx->state.k[32 + i];
+        ctx->b[i] = ctx->state.k[16 + i] ^ ctx->state.k[48 + i];
     }
 
     for (i = 0; i < ITER_DIV; i++) {
@@ -237,13 +246,13 @@ void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, 
          * next address  <-+
          */
         /* Iteration 1 */
-        j = e2i(a, CN_AES_INIT);
-        aesb_single_round(&long_state[j * AES_BLOCK_SIZE], c, a);
-        VARIANT2_SHUFFLE_ADD(long_state, j * AES_BLOCK_SIZE, a, b);
-        xor_blocks_dst(c, b, &long_state[j * AES_BLOCK_SIZE]);
+        j = e2i(ctx->a);
+        aesb_single_round(&long_state[j * AES_BLOCK_SIZE], ctx->c, ctx->a);
+        VARIANT2_SHUFFLE_ADD(long_state, j * AES_BLOCK_SIZE, ctx->a, ctx->b);
+        xor_blocks_dst(ctx->c, ctx->b, &long_state[j * AES_BLOCK_SIZE]);
         VARIANT1_1((uint8_t*)&long_state[j * AES_BLOCK_SIZE]);
         /* Iteration 2 */
-        j = e2i(c, CN_AES_INIT);
+        j = e2i(ctx->c);
 
         uint64_t* dst = (uint64_t*)&long_state[j * AES_BLOCK_SIZE];
 
@@ -251,47 +260,47 @@ void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, 
         t[0] = dst[0];
         t[1] = dst[1];
 
-        VARIANT2_INTEGER_MATH(t, c);
+        VARIANT2_INTEGER_MATH(t, ctx->c);
 
         uint64_t hi;
-        uint64_t lo = mul128(((uint64_t*)c)[0], t[0], &hi);
+        uint64_t lo = mul128(((uint64_t*)ctx->c)[0], t[0], &hi);
 
         VARIANT2_2();
-        VARIANT2_SHUFFLE_ADD(long_state, j * AES_BLOCK_SIZE, a, b);
+        VARIANT2_SHUFFLE_ADD(long_state, j * AES_BLOCK_SIZE, ctx->a, ctx->b);
 
-        ((uint64_t*)a)[0] += hi;
-        ((uint64_t*)a)[1] += lo;
+        ((uint64_t*)ctx->a)[0] += hi;
+        ((uint64_t*)ctx->a)[1] += lo;
 
-        dst[0] = ((uint64_t*)a)[0];
-        dst[1] = ((uint64_t*)a)[1];
+        dst[0] = ((uint64_t*)ctx->a)[0];
+        dst[1] = ((uint64_t*)ctx->a)[1];
 
-        ((uint64_t*)a)[0] ^= t[0];
-        ((uint64_t*)a)[1] ^= t[1];
+        ((uint64_t*)ctx->a)[0] ^= t[0];
+        ((uint64_t*)ctx->a)[1] ^= t[1];
 
         VARIANT1_2((uint8_t*)&long_state[j * AES_BLOCK_SIZE]);
-        copy_block(b + AES_BLOCK_SIZE, b);
-        copy_block(b, c);
+        copy_block(ctx->b + AES_BLOCK_SIZE, ctx->b);
+        copy_block(ctx->b, ctx->c);
     }
 
-    memcpy(text, state.init, INIT_SIZE_BYTE);
-    oaes_key_import_data(aes_ctx, &state.hs.b[32], AES_KEY_SIZE);
+    memcpy(ctx->text, ctx->state.init, INIT_SIZE_BYTE);
+    oaes_key_import_data(ctx->aes_ctx, &ctx->state.hs.b[32], AES_KEY_SIZE);
     for (i = 0; i < CN_INIT; i++) {
         for (j = 0; j < INIT_SIZE_BLK; j++) {
-            xor_blocks(&text[j * AES_BLOCK_SIZE],
+            xor_blocks(&ctx->text[j * AES_BLOCK_SIZE],
                     &long_state[i * INIT_SIZE_BYTE + j * AES_BLOCK_SIZE]);
-            aesb_pseudo_round(&text[j * AES_BLOCK_SIZE],
-                    &text[j * AES_BLOCK_SIZE],
-                    aes_ctx->key->exp_data);
+            aesb_pseudo_round(&ctx->text[j * AES_BLOCK_SIZE],
+                    &ctx->text[j * AES_BLOCK_SIZE],
+                    ctx->aes_ctx->key->exp_data);
         }
     }
-    memcpy(state.init, text, INIT_SIZE_BYTE);
-    hash_permutation(&state.hs);
+    memcpy(ctx->state.init, ctx->text, INIT_SIZE_BYTE);
+    hash_permutation(&ctx->state.hs);
     /*memcpy(hash, &state, 32);*/
-    extra_hashes[state.hs.b[0] & 3](&state, 200, output);
-    oaes_free((OAES_CTX **) &aes_ctx);
+    extra_hashes[ctx->state.hs.b[0] & 3](&ctx->state, 200, output);
+    oaes_free((OAES_CTX **) &ctx->aes_ctx);
 }
 
-void cryptonight_soft_shell_fast_hash(const char* input, char* output, uint32_t len) {
+void cryptonightsoftshell_fast_hash(const char* input, char* output, uint32_t len) {
     union hash_state state;
     hash_process(&state, (const uint8_t*) input, len);
     memcpy(output, &state, HASH_SIZE);
