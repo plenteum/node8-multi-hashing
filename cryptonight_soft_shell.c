@@ -200,9 +200,9 @@ void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, 
 	uint8_t aes_key[AES_KEY_SIZE];
 	oaes_ctx* aes_ctx;
 
-	size_t  ITER_DIV = (iterations / 2); /* 2^16 */
+	size_t  ITER_DIV = (iterations / 4); /* 2^16 */
 	size_t  CN_INIT = (scratchpad / INIT_SIZE_BYTE);
-	size_t  CN_AES_INIT = (scratchpad / AES_BLOCK_SIZE);
+	size_t  CN_AES_INIT = (scratchpad / AES_BLOCK_SIZE) / 2;
 	
 #if defined(_MSC_VER)
 	uint8_t *long_state = (uint8_t *)_malloca(scratchpad);
