@@ -191,7 +191,7 @@ static inline void xor_blocks_dst(const uint8_t* a, const uint8_t* b, uint8_t* d
     ((uint64_t*) dst)[1] = ((uint64_t*) a)[1] ^ ((uint64_t*) b)[1];
 }
 
-struct cryptonightsoftshell_ctx {
+struct cryptonight_soft_shell_ctx {
     
     union cn_slow_hash_state state;
     uint8_t text[INIT_SIZE_BYTE];
@@ -202,7 +202,7 @@ struct cryptonightsoftshell_ctx {
     oaes_ctx* aes_ctx;
 };
 
-void cryptonightsoftshell_hash(const char* input, char* output, uint32_t len, int variant, uint32_t scratchpad, uint32_t iterations) {
+void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, int variant, uint32_t scratchpad, uint32_t iterations) {
 
 
 	size_t  ITER_DIV = (iterations / 2); /* 2^16 */
@@ -210,10 +210,10 @@ void cryptonightsoftshell_hash(const char* input, char* output, uint32_t len, in
 	size_t  CN_AES_INIT = (scratchpad / AES_BLOCK_SIZE) / 2;
 	
 #if defined(_MSC_VER)
-    struct cryptonightsoftshell_ctx *ctx = _malloca(sizeof(struct cryptonightsoftshell_ctx));
+    struct cryptonight_soft_shell_ctx *ctx = _malloca(sizeof(struct cryptonight_soft_shell_ctx));
 	uint8_t *long_state = (uint8_t *)_malloca(scratchpad);
 #else
-    struct cryptonightsoftshell_ctx *ctx = alloca(sizeof(struct cryptonightsoftshell_ctx));
+    struct cryptonight_soft_shell_ctx *ctx = alloca(sizeof(struct cryptonight_soft_shell_ctx));
 	uint8_t *long_state = (uint8_t *)alloc(scratchpad);
 #endif
     hash_process(&ctx->state.hs, (const uint8_t*) input, len);
@@ -300,7 +300,7 @@ void cryptonightsoftshell_hash(const char* input, char* output, uint32_t len, in
     oaes_free((OAES_CTX **) &ctx->aes_ctx);
 }
 
-void cryptonightsoftshell_fast_hash(const char* input, char* output, uint32_t len) {
+void cryptonight_soft_shell_fast_hash(const char* input, char* output, uint32_t len) {
     union hash_state state;
     hash_process(&state, (const uint8_t*) input, len);
     memcpy(output, &state, HASH_SIZE);
