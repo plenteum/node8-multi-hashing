@@ -3,7 +3,6 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 // Portions Copyright (c) 2018 The Monero developers
 // Portions Copyright (c) 2018 The TurtleCoin Developers
-// Portions Copyright (c) 2019 The Plenteum Developers
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,13 +20,11 @@
 #include <malloc.h>
 #endif
 
-
-#define AES_BLOCK_SIZE  16
-#define AES_KEY_SIZE    32 /*16*/
-#define INIT_SIZE_BLK   8
-#define INIT_SIZE_BYTE  (INIT_SIZE_BLK * AES_BLOCK_SIZE)
-
-
+// Standard Crypto Definitions
+#define AES_BLOCK_SIZE         16
+#define AES_KEY_SIZE           32
+#define INIT_SIZE_BLK          8
+#define INIT_SIZE_BYTE         (INIT_SIZE_BLK * AES_BLOCK_SIZE)
 
 #define VARIANT1_1(p) \
   do if (variant == 1) \
@@ -192,23 +189,24 @@ static inline void xor_blocks_dst(const uint8_t* a, const uint8_t* b, uint8_t* d
 }
 
 void cryptonight_soft_shell_hash(const char* input, char* output, uint32_t len, int variant, uint32_t scratchpad, uint32_t iterations) {
-	union cn_slow_hash_state state;
-	uint8_t text[INIT_SIZE_BYTE];
-	uint8_t a[AES_BLOCK_SIZE];
-	uint8_t b[AES_BLOCK_SIZE * 2];
-	uint8_t c[AES_BLOCK_SIZE];
-	uint8_t aes_key[AES_KEY_SIZE];
-	oaes_ctx* aes_ctx;
-
-	size_t  ITER_DIV = (iterations / 2); /* 2^16 */
-	size_t  CN_INIT = (scratchpad / INIT_SIZE_BYTE);
-	size_t  CN_AES_INIT = (scratchpad / AES_BLOCK_SIZE) / 2;
-	
+    union cn_slow_hash_state state;
+    uint8_t text[INIT_SIZE_BYTE];
+    uint8_t a[AES_BLOCK_SIZE];
+    uint8_t b[AES_BLOCK_SIZE];
+    uint8_t c[AES_BLOCK_SIZE];
+    uint8_t aes_key[AES_KEY_SIZE];
+    oaes_ctx* aes_ctx;
+    
 #if defined(_MSC_VER)
 	uint8_t *long_state = (uint8_t *)_malloca(scratchpad);
 #else
-	uint8_t *long_state = (uint8_t *)alloca(scratchpad);
+    uint8_t *long_state = (uint8_t *)malloc(scratchpad);
 #endif
+
+    size_t CN_INIT = (scratchpad / INIT_SIZE_BYTE);
+    size_t ITER_DIV = (iterations / 2);
+    size_t CN_AES_INIT = (scratchpad / AES_BLOCK_SIZE) / 2;
+
     hash_process(&state.hs, (const uint8_t*) input, len);
     memcpy(text, state.init, INIT_SIZE_BYTE);
     memcpy(aes_key, state.hs.b, AES_KEY_SIZE);
